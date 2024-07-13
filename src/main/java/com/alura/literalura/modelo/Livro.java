@@ -1,6 +1,6 @@
 package com.alura.literalura.modelo;
 
-import javax.persistence.*;
+import jakarta.persistence.*;
 import lombok.Data;
 
 
