@@ -7,7 +7,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Scanner;
 
 @RestController
 @RequestMapping("/livros")
@@ -15,13 +14,14 @@ public class LivroControlador {
     @Autowired
     private LivroServico livroServico;
 
-    private final Scanner scanner = new Scanner(System.in);
-
     @PostMapping("/buscar")
-    public Livro buscarLivroPorTitulo() throws Exception {
-        System.out.print("Digite o título do livro: ");
-        String titulo = scanner.nextLine();
-        return livroServico.buscarLivroPorTitulo(titulo);
+    public Livro buscarLivroPorTitulo(@RequestBody String titulo) {
+        try {
+            return livroServico.buscarLivroPorTitulo(titulo);
+        } catch (Exception e) {
+            System.err.println("Erro ao buscar livro: " + e.getMessage());
+            return null;
+        }
     }
 
     @GetMapping("/listar")

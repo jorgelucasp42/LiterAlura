@@ -9,10 +9,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -27,7 +29,8 @@ public class LivroServico {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public Livro buscarLivroPorTitulo(String titulo) throws Exception {
-        String url = "https://gutendex.com/books?title=" + titulo;
+        String encodedTitulo = URLEncoder.encode(titulo, StandardCharsets.UTF_8);
+        String url = "https://gutendex.com/books?search=" + encodedTitulo;
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(new URI(url))
@@ -36,12 +39,12 @@ public class LivroServico {
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
         JsonNode root = objectMapper.readTree(response.body());
 
-        if (root.get("results").isArray() && root.get("results").size() > 0) {
+        if (root.has("results") && root.get("results").isArray() && root.get("results").size() > 0) {
             JsonNode livroNode = root.get("results").get(0);
 
             Livro livro = new Livro();
             livro.setTitulo(livroNode.get("title").asText());
-            livro.setIdiomas(livroNode.get("languages").asText());
+            livro.setIdiomas(livroNode.get("languages").toString());  // Converting to string
             livro.setDownloads(livroNode.get("download_count").asInt());
 
             JsonNode autorNode = livroNode.get("authors").get(0);
@@ -56,9 +59,9 @@ public class LivroServico {
             livro.setAutor(autor);
 
             return livroRepositorio.save(livro);
+        } else {
+            throw new Exception("Livro não encontrado ou resposta inesperada da API.");
         }
-
-        return null;
     }
 
     public List<Livro> listarTodosLivros() {
@@ -77,7 +80,7 @@ public class LivroServico {
 
     public List<Livro> listarLivrosPorIdioma(String idioma) {
         return livroRepositorio.findAll().stream()
-                .filter(livro -> livro.getIdiomas().equalsIgnoreCase(idioma))
+                .filter(livro -> livro.getIdiomas().contains(idioma))
                 .collect(Collectors.toList());
     }
 }
