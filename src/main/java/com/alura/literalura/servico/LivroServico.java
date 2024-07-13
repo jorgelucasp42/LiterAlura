@@ -31,22 +31,54 @@ public class LivroServico {
     public Livro buscarLivroPorTitulo(String titulo) throws Exception {
         String encodedTitulo = URLEncoder.encode(titulo, StandardCharsets.UTF_8);
         String url = "https://gutendex.com/books?search=" + encodedTitulo;
-        HttpClient client = HttpClient.newHttpClient();
+        System.out.println("URL: " + url);  // Log da URL
+
+        HttpClient client = HttpClient.newBuilder()
+                .followRedirects(HttpClient.Redirect.ALWAYS)
+                .build();
+
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(new URI(url))
                 .build();
 
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response;
+        try {
+            response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            System.out.println("Response Status Code: " + response.statusCode());
+            System.out.println("Response Body: " + response.body());
+        } catch (Exception e) {
+            System.err.println("Erro ao enviar a requisição: " + e.getMessage());
+            throw new Exception("Erro ao enviar a requisição para a API.");
+        }
+
+        if (response.body().isEmpty()) {
+            System.err.println("Response body is empty");
+            throw new Exception("Resposta da API está vazia.");
+        }
+
         JsonNode root = objectMapper.readTree(response.body());
+        System.out.println("Parsed JSON: " + root.toPrettyString());
 
-        if (root.has("results") && root.get("results").isArray() && root.get("results").size() > 0) {
-            JsonNode livroNode = root.get("results").get(0);
+        if (!root.has("results")) {
+            System.err.println("JSON does not contain 'results'");
+            throw new Exception("Resposta da API não contém 'results'.");
+        }
 
-            Livro livro = new Livro();
-            livro.setTitulo(livroNode.get("title").asText());
-            livro.setIdiomas(livroNode.get("languages").toString());  // Converting to string
-            livro.setDownloads(livroNode.get("download_count").asInt());
+        JsonNode resultsNode = root.get("results");
+        if (!resultsNode.isArray() || resultsNode.size() == 0) {
+            System.err.println("Results node is not an array or is empty");
+            throw new Exception("Resultados não encontrados ou resposta inesperada da API.");
+        }
 
+        JsonNode livroNode = resultsNode.get(0);
+        System.out.println("First book in results: " + livroNode.toPrettyString());
+
+        Livro livro = new Livro();
+        livro.setTitulo(livroNode.get("title").asText());
+        livro.setIdiomas(livroNode.get("languages").get(0).asText());
+        livro.setDownloads(livroNode.get("download_count").asInt());
+
+        if (livroNode.has("authors") && livroNode.get("authors").isArray() && livroNode.get("authors").size() > 0) {
             JsonNode autorNode = livroNode.get("authors").get(0);
             Autor autor = new Autor();
             autor.setNome(autorNode.get("name").asText());
@@ -57,11 +89,12 @@ public class LivroServico {
 
             autor = autorRepositorio.save(autor);
             livro.setAutor(autor);
-
-            return livroRepositorio.save(livro);
         } else {
-            throw new Exception("Livro não encontrado ou resposta inesperada da API.");
+            System.err.println("No authors found or unexpected API response");
+            throw new Exception("Autores não encontrados ou resposta inesperada da API.");
         }
+
+        return livroRepositorio.save(livro);
     }
 
     public List<Livro> listarTodosLivros() {
@@ -80,7 +113,7 @@ public class LivroServico {
 
     public List<Livro> listarLivrosPorIdioma(String idioma) {
         return livroRepositorio.findAll().stream()
-                .filter(livro -> livro.getIdiomas().contains(idioma))
+                .filter(livro -> livro.getIdiomas().equalsIgnoreCase(idioma))
                 .collect(Collectors.toList());
     }
 }
